@@ -1,25 +1,39 @@
 trigger:
-- dev
+- main
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
   pythonVersion: '3.11'
-  azureSubscription: 'YOUR-SERVICE-CONNECTION'
-  appName: 'YOUR-APP-SERVICE-NAME'
+  azureSubscription: 'Azure Service Connection'
+  appName: 'SYMPY'
 
 steps:
+
+# Checkout Source Code
+- checkout: self
+
+# Install Python
 - task: UsePythonVersion@0
+  displayName: 'Use Python $(pythonVersion)'
   inputs:
     versionSpec: '$(pythonVersion)'
 
+# Install Dependencies
 - script: |
     python -m pip install --upgrade pip
     pip install -r requirements.txt
-  displayName: 'Install Dependencies'
+  displayName: 'Install Python Dependencies'
 
+# Verify Flask App
+- script: |
+    python -c "from app import app; print('Flask app loaded successfully')"
+  displayName: 'Validate Flask Application'
+
+# Archive Application
 - task: ArchiveFiles@2
+  displayName: 'Archive Application'
   inputs:
     rootFolderOrFile: '$(Build.SourcesDirectory)'
     includeRootFolder: false
@@ -27,7 +41,19 @@ steps:
     archiveFile: '$(Build.ArtifactStagingDirectory)/app.zip'
     replaceExistingArchive: true
 
+# Publish Artifact
 - task: PublishBuildArtifacts@1
+  displayName: 'Publish Build Artifact'
   inputs:
     PathtoPublish: '$(Build.ArtifactStagingDirectory)'
     ArtifactName: 'drop'
+    publishLocation: 'Container'
+
+# Deploy to Azure App Service
+- task: AzureWebApp@1
+  displayName: 'Deploy to Azure App Service'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    appType: 'webAppLinux'
+    appName: '$(appName)'
+    package: '$(Build.ArtifactStagingDirectory)/app.zip'
